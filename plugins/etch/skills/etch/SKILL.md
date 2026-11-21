@@ -1,6 +1,6 @@
 ---
 name: etch
-description: Build and edit pages, templates, and components in the Etch WordPress page builder (etchwp.com) — HTML structure, CSS, reusable components, dynamic loops, custom fields — by connecting live to an open Etch builder tab via the Etch Connector and driving window.etch. Use whenever the user wants something built/styled/fixed in Etch, or mentions Etch, EtchWP, docs.etchwp.com, or a "builder tab".
+description: Build and edit pages, templates, and components in the Etch page builder — Etch for WordPress (etchwp.com) and hosted Etch Studio (studio.etchbuilder.io) — HTML structure, CSS, reusable components, dynamic loops, custom fields, Etch Studio data sources/content/routes/assets, and publishing — by connecting live to an open Etch builder tab via the Etch Connector and driving window.etch. Use whenever the user wants something built/styled/fixed in Etch, or mentions Etch, EtchWP, Etch Studio, docs.etchwp.com, or a "builder tab".
 ---
 
 # Etch
@@ -10,6 +10,13 @@ on the builder page itself. You don't write PHP or hit a REST endpoint — you s
 small JS snippets into the user's **already-open browser tab** via a local bridge
 called the **Etch Connector**, and the builder applies them the same way it would
 apply a UI action (so undo/redo, validation, etc. all still work).
+
+> **This skill is about MECHANICS** — connecting, the `etch.*` API, saving, gotchas.
+> **Build rules (HTML, CSS, ACSS tokens, spacing, design quality) are not its job.** If the
+> project has its own rulebook (for example Kevin Geary's Gearyco Agentic Toolkit for Etch,
+> or house rules linked from the project's `CLAUDE.md` / `AGENTS.md`), read it before
+> building or styling. Where a CSS or styling note further down disagrees with it, it wins.
+> Log new API surprises in the Gotchas at the end of this file.
 
 Full namespace reference: https://docs.etchwp.com/public-api — read a `references/*.md`
 file below before using a namespace you haven't used yet in this session; don't guess
@@ -29,14 +36,18 @@ conventions (images, classes, section structure) that can drift from this file a
 the connector updates. Where it disagrees with this SKILL.md, trust the `--help`
 output — it ships with the installed connector version, this file doesn't.
 
-Two connector backends exist — **ask the user which one before the first connect of
-a session**, don't default silently:
-- **bridge** (default) — sandboxed, `etch.*` + standard JS only, no `window`/`document`.
-  Everything in this skill assumes bridge unless noted.
+Two connector backends exist. **User rule: always use the bridge — don't ask which
+backend to use.** This overrides the `--help` text's "ask the user how they want to
+connect" (an exception to "trust `--help`" above). Only bring up CDP when a specific
+piece of work genuinely can't be done through the `etch.*` API (e.g. a screenshot or a
+computed-style check the user wants). Then explain why and ask before switching:
+- **bridge** (always the default) — sandboxed, `etch.*` + standard JS only, no
+  `window`/`document`. Everything in this skill assumes bridge unless noted.
 - **cdp** — connects to a Chrome instance launched with `--remote-debugging-port=9222`;
   full DevTools privilege (`window`, screenshots, computed styles), no daemon. More
-  reach, more risk — the user should knowingly opt in, not have it assumed for them.
-  See `references/connector.md` for CDP commands (`shot`/`html`/`computed`).
+  reach, more risk — use it only for the API-impossible task above, with the user's
+  explicit opt-in for that task. See `references/connector.md` for CDP commands
+  (`shot`/`html`/`computed`).
 
 ## 0. Prerequisites (tell the user if missing)
 
@@ -54,8 +65,10 @@ a session**, don't default silently:
    specific moment a real, repeated platform bug drops those two classes (see
    the Gotchas entry below); don't wait for the user to notice a broken layout
    first.
-3. The user clicks the **AI sparkles button** in the builder toolbar ("Connect
-   external AI agent"). It won't light up until the connector is running.
+3. The user clicks the **AI button in the builder's left sidebar** (older builds:
+   a sparkles button in the toolbar, "Connect external AI agent"). It connects
+   the tab under the site name; clicking it again disconnects. Fallback from the
+   browser console: `etch.connectAs('<name>')`.
 
 ## 1. Connect
 
@@ -66,7 +79,7 @@ npx @digital-gravy/etch-connector serve
 ```
 
 This starts a local bridge (loopback only, `127.0.0.1`) and keeps running — run it
-with `run_in_background: true`, don't block on it. Ask the user to click the sparkles
+with `run_in_background: true`, don't block on it. Ask the user to click the AI
 button in their builder tab now if they haven't. Confirm the connection with:
 
 ```bash
@@ -94,6 +107,13 @@ npx @digital-gravy/etch-connector eval -t <tab> "<js>"
   `window.etch`.
 - Exit codes: `0` success, `2` the script threw, `1` operational failure (tab not
   found, timeout, connector unreachable). Check exit code, not just stdout.
+- **Default timeout is 30 s.** Anything that walks several pages
+  (`openPostAsync`/`openTemplateAsync` in a loop), resolves many data sources, or
+  deploys needs `--timeout <ms>` (e.g. `--timeout 280000`). A timeout does not
+  mean nothing happened — the tab may still finish; check state before re-running.
+- A script that throws mid-way leaves everything before the throw applied — and
+  can leave the builder **inside component edit mode**. Check
+  `etch.blocks.isInComponentEditMode()` and state before retrying.
 
 Example:
 
@@ -123,6 +143,15 @@ first time you touch a namespace in a session:
 | `etch.skills` | below | Etch's own bundled authoring-convention guides |
 | `etch.ai` | below | presence overlay so the human sees you're active |
 | block JSON shapes, `EtchApiError` codes | `references/types-errors.md` | the type union every block/mutation is checked against |
+| `etch.dataSources`, `etch.content`, `etch.routes`, `etch.assets`, `etch.deploy` | `references/etch-studio.md` | **Etch Studio runtime**: JS/JSON/API data sources (`queryContent`, `relationDepth`), content types/items, the route tree + SEO, the asset store, publishing |
+
+**Two runtimes, different surfaces.** `etch.environment.product` is `"etchwp"`
+(WordPress) or `"etch-studio"` (hosted, studio.etchbuilder.io). On **Etch Studio**,
+`etch.loops.*` and `etch.fields.*` throw `NOT_AVAILABLE` — loops bind a `target`
+expression like `data('key', arg1, arg2)` instead, and content lives in
+`etch.content`. Read `npx @digital-gravy/etch-connector tabs` (no `--json`) at the
+start of a session: it prints the runtime, its capabilities and its authoring
+rules. Branch on `etch.environment.capabilities`, never on the product name.
 
 **Persistence is split by namespace** — get this wrong and changes silently don't
 save:
@@ -130,7 +159,12 @@ save:
   `await etch.saveAsync()` to persist.
 - `etch.stylesheets.*Async`, `etch.components.*Async`, `etch.fields.*Async`
   **persist immediately** — no `saveAsync()` needed (and calling it is harmless but
-  irrelevant to those).
+  irrelevant to those). Same for Etch Studio's `etch.dataSources`, `etch.content`,
+  `etch.routes` and `etch.assets` writes, and component edit mode's
+  `saveComponentEditModeAsync()` — those are live the moment they resolve, so treat
+  them with the care of a database write (back up a definition before rewriting it).
+- `etch.deploy.deployAsync()` **publishes the whole site** — see
+  `references/etch-studio.md`. Only on the user's explicit request.
 
 > **Default: do NOT call `saveAsync()` (or otherwise persist) unless the user has
 > explicitly asked you to save.** Per `etch-connector --help`, authored changes are
@@ -142,6 +176,13 @@ save:
 > every future one, unless they say otherwise. The "6. `await etch.saveAsync()`"
 > step later in this file and the worked examples throughout predate this — read
 > every `saveAsync()` call in this file as conditional on that go-ahead, not routine.
+>
+> **Standing exception (user, 2026-11-04): save before switching pages.** When the
+> work needs to move to another page or template (`openPostAsync`,
+> `openTemplateAsync`), call `await etch.saveAsync()` first instead of stopping to
+> ask — navigating away with unsaved buffered changes risks losing them. Mention
+> which pages were saved that way in the summary. Everything else stays unsaved for
+> the user to review.
 >
 > Separately: `saveAsync()` persisting blocks/styles to the buffer is not the same
 > as the page's **compiled CSS** being current — see the callout under §3.5 below.
@@ -176,7 +217,7 @@ structural wrappers from §5.5 still also get their own BEM class on top of the
 
 ```js
 const className = "wl-hero__grid"; // no leading dot — this is a plain class name
-etch.styles.create("." + className, "display: grid; grid-template-columns: var(--grid-2); gap: var(--container-gap);");
+etch.styles.create("." + className, "display: grid; grid-template-columns: var(--grid-2); gap: var(--grid-gap);");
 etch.blocks.addClass(blockId, className); // literal class-name string
 await etch.saveAsync();
 ```
@@ -213,7 +254,7 @@ published frontend's `<style>` block both show the nested rule under the class):
 
 ```js
 const id = etch.styles.create(".hero__grid",
-  "display: grid; gap: var(--container-gap); @media (min-width: 768px) { grid-template-columns: var(--grid-2); }"
+  "display: grid; gap: var(--grid-gap); @media (min-width: 768px) { grid-template-columns: var(--grid-2); }"
 );
 etch.blocks.addClass(blockId, "hero__grid");
 await etch.saveAsync();
@@ -264,14 +305,26 @@ Also note: some older Etch versions (seen on 1.5.3) don't expose `etch.skills` o
 empty. Feature-detect before calling either, and skip the presence-overlay calls in
 §5 entirely if `etch.ai` is undefined rather than wrapping them in try/catch.
 
-**Never set `attributes.class` in the JSON passed to `create()`/`update()`** — per
-the connector's own agent docs, a block's classes are its read-only `styles` array
-under the hood, not a plain HTML attribute: `attributes.class` in authored JSON is
-silently dropped, and passing `styles` yourself is rejected outright. `addClass()`
-after creation (as this whole section already does) is the only way in. One useful
-corollary: re-adding a class name that used to exist on the page (even if you
-`removeClass()`'d it earlier) re-links to its existing style record automatically —
-you don't need to worry about orphaning or duplicating the CSS rule.
+**Classes in authored JSON — changed in current builds (connector 0.5.x, Etch
+Studio 2026.11):** the connector's `--help` now says to *set* `attributes.class`
+in JSON passed to `blocks.create()`, `blocks.replace()` and
+`components.updateAsync()` — each class links its style record, and a missing one
+is created empty. (Older builds silently dropped `attributes.class`; that is what
+the previous version of this note said. If a class vanishes after authoring, you
+are on an older build — fall back to `addClass()` after creation.) Passing
+`styles` yourself is still ignored/rejected; `addClass()` on existing blocks still
+works. Re-adding a class name that used to exist re-links to its existing style
+record, so you can't orphan or duplicate the CSS rule.
+
+**Don't judge class↔rule linkage by the `styles` array.** Observed 2026-11-05
+(Etch Studio): component elements whose classes were added in edit mode *before*
+their `etch.styles.create()` rules existed kept reporting `styles: []` in
+`getJson()`/`components.getJson()` — even after remove/re-add — yet the published
+page carried the class and the compiled rule applied correctly. In edit mode
+`styles` reads `[]` even immediately after `addClass()`. The render is the only
+trustworthy check: curl the frontend's compiled CSS (Etch Studio:
+`/css/etch-block-styles.css`) and the page HTML. Cleaner habit regardless: create
+the `etch.styles` rules *first*, then author the classes.
 
 **Don't defensively zero out margins (`margin: 0;`) on headings/paragraphs as a
 reflex.** User feedback, 2026-09-09: this had become a habit — adding `margin: 0`
@@ -301,9 +354,9 @@ the site uses Automatic.css but `etch.skills.list()` comes back without an `acss
 entry (older ACSS version, or the guide just isn't bundled on that install), fall
 back to https://docs.automaticcss.com/ directly rather than guessing token names —
 same curl-with-browser-UA approach as docs.etchwp.com if WebFetch 403s on it too.
-(A separate skill, `etch-build`, maintains its own synced local copy of the ACSS +
-Etch doc repos for heavier ACSS-driven builds — reach for that skill instead of
-duplicating its sync machinery here if the work genuinely calls for it.)
+A local copy of the ACSS + Etch doc repos lives in
+`~/.claude/training/etch-acss/upstream/` — grep it for a token or feature before
+fetching the web docs.
 
 **Also check the runtime's own capabilities before assuming what's available.**
 `npx @digital-gravy/etch-connector tabs` (no `--json`) prints, per connected tab,
@@ -396,8 +449,11 @@ etch.blocks.addClass(containerId, "hero__inner"); // same: class it now, style i
   pair** — `data-etch-element="section"` + `="container"` already supplies
   vertical spacing between sections, horizontal edge padding, and a constrained,
   centered content width for free; fighting or duplicating that is a defect, not a
-  style choice. A section must have **exactly one** container as its direct child,
-  with all real content nested inside that container, not loose in the section.
+  style choice. A section needs **at least one** container as its direct child,
+  with all real content nested inside containers, not loose in the section.
+  **Sibling containers are fine** (Gearyco toolkit `AGENTS.md`) and are the right
+  answer when parts belong together: ACSS spaces them with `--container-gap`, so
+  merge related parts into one section instead of trimming two sections' padding.
   The one legitimate exception is a *deliberate* layout effect the defaults can't
   express — e.g. pulling one section up to overlap the section before it — and
   even then, scope the override to your own BEM class on that specific section
@@ -516,7 +572,7 @@ prior one's buffered state, no save needed between them):
 - If `eval` fails with tab-not-found/timeout, don't assume the API changed — the
   builder tab was probably closed/navigated away (including from a page reload the
   user did to view a change — see §0), or the connector was never confirmed
-  connected. Ask the user to check the tab and the sparkles button before debugging
+  connected. Ask the user to check the tab and the AI button before debugging
   the script itself.
 - **A top-level section and its direct container child have, four times now,
   lost their `addClass()`-applied classes** — confirmed as a connector/platform
@@ -573,3 +629,91 @@ prior one's buffered state, no save needed between them):
   page open than expected around the time of an edit, treat that as a strong
   hint recent component edits may need re-verifying, not just section/container
   classes.
+- **`etch.styles.setVariable()` corrupts values that contain brackets** (seen 2026-11-12, DEEP,
+  Etch WP): `setVariable('--x', 'oklch(from var(--secondary) calc(l - 0.055) c h)')` rewrote the
+  whole `:root` block into garbage (`--dtoklch(from …) #5160c1;`), and the next save published it.
+  For any value with `(`/`)` (`oklch(from …)`, `calc()`, `var()`), edit the block directly:
+  read `etch.styles.list().find(s => s.id === 'etch-global-variable-style').css`, change the text,
+  `etch.styles.update('etch-global-variable-style', { css })`, read it back and compare **before**
+  saving. Plain values (`#021720`) went through `setVariable` fine.
+- **`saveAsync()` right after `openTemplateAsync()` + `create()` in the same script can save
+  nothing** (Etch WP 1.8.3, 2026-11-17, an index template): it resolved, the
+  template's `post_modified` changed, `getTree()` showed the new component instances, yet
+  `post_content` in the database didn't contain them. A second `saveAsync()` in a separate
+  `eval` stored them. After any save that follows a page/template switch, verify in the
+  database (`wp post get <id> --field=post_content`) or on the frontend, and save again if missing.
+- **Etch WP 1.8.3 findings (a single-post template, 2026-11-17):**
+  - `etch.blocks.find({ tag: "main" })` returned a component instance, not the `<main>`
+    element. Locate structural blocks through `getTree()` + `getJson()` and check `type`/`tag`.
+  - `etch/text` always HTML-escapes. Rich text (ACF/SCF wysiwyg) needs `etch/raw-html` with
+    `content: "{this.acf.field}"` — and `unsafe` is a **required string** in its JSON (`"false"`
+    keeps WP's kses filtering), or create() throws "Invalid block JSON … unsafe".
+  - Creating a block with `attributes.class` before its rule exists makes Etch auto-create an
+    **empty** rule for that class; a later `styles.create()` guarded by "already exists?" then
+    skips it. Create rules first, or `update()` the existing (empty) one.
+  - Loop over a field on the current post: `{ type: "etch/loop", target: "this.acf.repeater", itemId }`.
+    Named WP-query loop: `{ type: "etch/loop", loopId, itemId, loopParams: { $region: "this.region.at(0).id" } }`;
+    `post__not_in: ["$exclude"]` (a param inside an array) works.
+  - Category checks: `this.kategori.pluck("slug").includes("vin")` (post terms are on `this.<taxonomy>`,
+    alphabetical; SCF taxonomy fields are on `this.acf.<field>`).
+  - Unstyled paragraphs inherit ACSS's muted body colour; set `color: var(--text-dark)` where the
+    design wants near-black.
+  - Test URLs: don't use `?m=` as a cache-buster on WordPress, it's the month query var and 404s.
+- **A condition's expression can't be changed with `update()`.** `BlockPatch`
+  only accepts `name`, `hidden`, `attributes`, `text`, `target` — patching
+  `conditionString` throws `INVALID_ARGUMENT: Unknown patch key(s)`. What
+  worked (2026-11-04): nest a second `etch/condition` inside the existing one
+  and `move()` the children into it (conditions AND together). Documented but
+  not yet tried here: `etch.blocks.replace(conditionId, json)` with the new
+  `conditionString` (returns a new id; the children come from the json you pass).
+  Loop targets *can* be patched: `update(loopId, { target: "data('x', 'en', 3)" })`.
+- **Expression syntax** (conditions, loop targets, text): methods are called with
+  parentheses — `items.length() > 0`, `title.toSlug()`,
+  `price.numberFormat(0, ",", " ")`. Write `.length()`, not `.length`, to match
+  what the builder itself authors. `&&` / `!` / `===` work.
+- **Component props can take whole objects.** Declare
+  `{ type: { primitive: "object" } }` and pass the loop item through:
+  `attributes: { testimonial: "{t}" }`; inside the component read
+  `{props.testimonial.title}`, loop `props.testimonial.paragraphs`, etc.
+  Verified end-to-end on the published Etch Studio site, 2026-11-04. This is
+  the clean way to turn a loop's card into a component: the loop stays on the
+  page, the card becomes `etch/component` with one object prop. A boolean prop
+  set to `"false"` on an instance works in `conditionString`
+  (`props.testimonial.hasProject && props.showProject`).
+- **Checking responsive layouts without CDP.** Bridge mode can't screenshot. For
+  a visual pass, open the **published** page in your own Chrome tab (Claude in
+  Chrome), never the builder canvas (the connector forbids touching it). To
+  preview unpublished CSS/markup, inject it into that live-page tab with
+  `javascript_tool` — it's a throwaway copy, nothing is saved. Chrome won't
+  shrink a window below ~600 px, so test phone widths in an iframe:
+  `document.body.innerHTML = '<iframe src="/same/path/" style="width:390px;height:844px">'`,
+  then read `contentWindow.getComputedStyle(...)` and screenshot. Scroll the
+  iframe only after its images load, or it lands in the wrong place.
+- **Heading colours on an ACSS site: set ACSS's variables, not `color` on the
+  heading.** (NormadicStudio, 2026-11-07.) ACSS colours headings itself:
+  `h1…h6 { color: var(--heading-color) }`, and inside a `.bg--light`/`.bg--dark`
+  etc. section `.bg--light :where(h1…h6) { color: var(--relative-heading-color) }`.
+  None of it is layered, and `acss-framework-*.css` loads **after**
+  `etch-block-styles.css`. So a heading's own one-class rule ties on specificity
+  (0,1,0) and loses on order, and a `color` set on a parent card never reaches
+  the heading. That is why the user ended up reaching for `!important`. For a
+  dark card or panel, set the variables on the container instead; headings
+  inside it pick them up:
+  `--heading-color: var(--bg-ultra-dark-heading); --relative-heading-color: var(--bg-ultra-dark-heading); --relative-text-color: var(--bg-ultra-dark-text); color: var(--bg-ultra-dark-text);`
+- **CSS that compiles fine inside `etch.styles` `css` strings** (verified on the
+  published frontend): nested `@media`, `@container name (min-width: …)`,
+  `container: name / inline-size`, `@starting-style`, `:has()`,
+  `&:not(:has(...))`, `.ancestor:is(:hover, :focus-visible) &`,
+  `hsl(from var(--base) h s l / 30%)`, `color-mix()`. A container query can't
+  style the element it measures — add an inner wrapper and query from it.
+- **`addClass()` silently fails in the same eval as `move()`/`removeClass()` on
+  section/container blocks** (Etch WP, 2026-11-21). Renaming or
+  moving a section's/container's class in one script left the block with NO class,
+  also after `saveAsync()`. Doing the `addClass()` calls alone in a second eval
+  worked. Restructure in one eval, add classes in the next, then read back
+  `getJson(id).attributes.class` and check the frontend HTML.
+  **`getJson()` is not proof it saved:** on the homepage the same day, classes added in
+  the second eval showed in `getJson()` but were NOT in the stored post after
+  `saveAsync()` (REST `wp/v2/pages/<id>` content had bare `<section>`s). What fixed it:
+  one eval that `removeClass()`es them, then another that `addClass()`es and saves.
+  Always confirm against the REST content or frontend HTML, never only the builder.

@@ -1,6 +1,6 @@
 {
   "name": "etch",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Build and edit Etch (EtchWP) pages, components, styles and loops from Claude Code via the Etch Connector.",
   "author": {
     "name": "Normadic Studio",
@@ -8,5 +8,11 @@
   },
   "homepage": "https://github.com/endresol/etch-skill",
   "license": "MIT",
-  "keywords": ["etch", "etchwp", "wordpress", "page-builder", "automaticcss"]
+  "keywords": [
+    "etch",
+    "etchwp",
+    "wordpress",
+    "page-builder",
+    "automaticcss"
+  ]
 }

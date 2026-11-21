@@ -134,6 +134,11 @@ etch.stylesheets.listCustomMedia(); // { "--md": "(min-width: 768px)", ... }
 `saveAsync()`. To edit a component's internal block tree, use component edit mode
 (see `blocks.md`) — this namespace only manages the definition's metadata/props.
 
+> **Update 2026-11 (connector 0.5.x):** current builds accept `attributes.class`
+> in `components.updateAsync({ blocks })` and link each class to its style record
+> (missing ones are created empty) — see SKILL.md §3.5. The gotcha below describes
+> older builds (1.6.1); the edit-mode `addClass()` pass still works on both.
+
 **Gotcha — `updateAsync({ blocks })` silently drops `class` from an element's
 `attributes`.** Observed on runtime 1.6.1, 2026-07-04: authoring a component's tree
 directly via `updateAsync(componentId, { blocks: [...] })` with elements carrying

@@ -5,6 +5,14 @@ https://docs.etchwp.com/public-api/fields ,
 https://docs.etchwp.com/public-api/navigation ,
 https://docs.etchwp.com/public-api/ui-and-history
 
+> **Etch Studio:** `etch.loops.*` and `etch.fields.*` throw `NOT_AVAILABLE` there.
+> Loops bind a `target` expression (`data('key', …)`) and content lives in
+> `etch.content` — see `etch-studio.md`. `etch.navigation` works on both runtimes;
+> `listPostsAsync()` / `listTemplatesAsync()` list what `openPostAsync(id)` /
+> `openTemplateAsync(id)` can open. Each open swaps the canvas (allow ~1–1.5 s
+> before reading `getTree()`), and unsaved buffered changes on the page you leave
+> are at risk — save first (SKILL.md §3).
+
 ## etch.loops — data sources bound to `etch/loop` blocks
 
 **Buffered** — persist with `await etch.saveAsync()`.

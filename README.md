@@ -2,7 +2,7 @@
 
 A [Claude Code](https://claude.com/claude-code) skill that lets Claude build and edit
 pages, components, styles and loops in the [Etch](https://etchwp.com?aff=e1d00537)
-WordPress page builder. It drives your open builder tab live through the official
+page builder, on WordPress and on hosted Etch Studio. It drives your open builder tab live through the official
 **Etch Connector**.
 
 It covers:
@@ -11,6 +11,7 @@ It covers:
 - the section/container scaffold and one-BEM-class-per-element styling
   (works well with [Automatic.css](https://automaticcss.com/ref/185/))
 - components, props, slots, conditions, loops, custom fields and navigation
+- Etch Studio: data sources, content, routes, assets and publishing
 - the Etch quirks and gotchas found while building real sites with it
 
 ## Requirements
@@ -51,8 +52,8 @@ Restart Claude Code (or start a new session). The skill shows up as `etch`.
 1. Open the page or template in the Etch builder and leave the tab open.
 2. In Claude Code, ask for what you want, for example *"In Etch, build a hero section
    with a heading, a short intro and two buttons"*.
-3. Claude starts the connector. When it asks, click the **AI sparkles button** in the
-   builder toolbar to connect the tab.
+3. Claude starts the connector. When it asks, click the **AI button** in the builder's
+   left sidebar to connect the tab (older builds: the sparkles button in the toolbar).
 
 Claude builds in the canvas and does **not** save unless you tell it to. Review the
 changes and click Save yourself, or tell Claude to save.
@@ -62,8 +63,9 @@ changes and click Save yourself, or tell Claude to save.
 - The Etch public API is `0.x` and experimental. The skill tells Claude to
   feature-detect and to trust `npx @digital-gravy/etch-connector --help` over its
   own notes when they disagree.
-- Some notes reflect one person's conventions: BEM classes on every element,
-  ACSS tokens, and `etch/svg` for icons. Edit `SKILL.md` to match yours.
+- The skill covers driving Etch, not design rules. Some notes reflect one person's
+  conventions (BEM classes on every element, ACSS tokens); edit `SKILL.md` to match
+  yours, or point Claude at your own rulebook from your project's `CLAUDE.md`.
 
 ## Links
 
